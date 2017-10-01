@@ -87,7 +87,7 @@ def respond(sock, docroot):
 
     parts = request.split()
     if len(parts) > 1 and parts[0] == "GET":
-        filePath = os.path.normpath(os.path.join(docroot+parts[1][1:]))
+        filePath = os.path.normpath(os.path.join(docroot, parts[1][1:]))
         log.info("Attempting to find file at: "+filePath)
         if any(x in parts[1] for x in INVALIDS) or not parts[1].endswith(('.html', '.css')): 
             log.info("403: Forbidden request")
