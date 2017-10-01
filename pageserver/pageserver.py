@@ -87,16 +87,16 @@ def respond(sock, docroot):
 
     parts = request.split()
     if len(parts) > 1 and parts[0] == "GET":
-        filePath = os.path.normpath("../"+docroot+parts[1])
+        filePath = os.path.normpath(docroot+parts[1])
         log.info("Attempting to find file at: "+filePath)
-        if any(x in parts[1] for x in INVALIDS):    #checking for invalid char strings
+        if any(x in parts[1] for x in INVALIDS) or not parts[1].endswith(('.html', '.css')): 
             log.info("403: Forbidden request")
             transmit(STATUS_FORBIDDEN, sock)
-        elif os.path.isfile(filePath):              #checking if requested file exists
+        elif os.path.isfile(filePath):
             log.info(filePath + " found!")
             transmit(STATUS_OK, sock)
             sendfile(filePath, sock)
-        else:                                       #otherwise file not found
+        else:
             log.info("404: File not found: "+filePath)
             transmit(STATUS_NOT_FOUND, sock)
 
