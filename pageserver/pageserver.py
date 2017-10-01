@@ -22,6 +22,7 @@ log = logging.getLogger(__name__)
 
 import socket    # Basic TCP/IP communication on the internet
 import _thread   # Response computation runs concurrently with main program
+import os
 
 
 def listen(portnum):
@@ -42,7 +43,7 @@ def listen(portnum):
     return serversocket
 
 
-def serve(sock, func):
+def serve(sock, func, docroot):
     """
     Respond to connections on sock.
     Args:
@@ -56,17 +57,13 @@ def serve(sock, func):
     while True:
         log.info("Attempting to accept a connection on {}".format(sock))
         (clientsocket, address) = sock.accept()
-        _thread.start_new_thread(func, (clientsocket,))
+        _thread.start_new_thread(func, (clientsocket, docroot))
 
 
 ##
-# Starter version only serves cat pictures. In fact, only a
-# particular cat picture.  This one.
+# List of invalid character strings 
 ##
-CAT = """
-     ^ ^
-   =(   )=
-"""
+INVALIDS = ['//', '~', '..']
 
 # HTTP response codes, as the strings we will actually send.
 # See:  https://en.wikipedia.org/wiki/List_of_HTTP_status_codes
@@ -78,10 +75,9 @@ STATUS_NOT_FOUND = "HTTP/1.0 404 Not Found\n\n"
 STATUS_NOT_IMPLEMENTED = "HTTP/1.0 401 Not Implemented\n\n"
 
 
-def respond(sock):
+def respond(sock, docroot):
     """
     This server responds only to GET requests (not PUT, POST, or UPDATE).
-    Any valid GET request is answered with an ascii graphic of a cat.
     """
     sent = 0
     request = sock.recv(1024)  # We accept only short requests
@@ -91,8 +87,19 @@ def respond(sock):
 
     parts = request.split()
     if len(parts) > 1 and parts[0] == "GET":
-        transmit(STATUS_OK, sock)
-        transmit(CAT, sock)
+        filePath = os.path.normpath("../"+docroot+parts[1])
+        log.info("Attempting to find file at: "+filePath)
+        if any(x in parts[1] for x in INVALIDS):    #checking for invalid char strings
+            log.info("403: Forbidden request")
+            transmit(STATUS_FORBIDDEN, sock)
+        elif os.path.isfile(filePath):              #checking if requested file exists
+            log.info(filePath + " found!")
+            transmit(STATUS_OK, sock)
+            sendfile(filePath, sock)
+        else:                                       #otherwise file not found
+            log.info("404: File not found: "+filePath)
+            transmit(STATUS_NOT_FOUND, sock)
+
     else:
         log.info("Unhandled request: {}".format(request))
         transmit(STATUS_NOT_IMPLEMENTED, sock)
@@ -100,7 +107,20 @@ def respond(sock):
 
     sock.shutdown(socket.SHUT_RDWR)
     sock.close()
+    log.info('Socket closed')
     return
+
+
+def sendfile(filePath, sock):
+    """
+    Reads a file and transmits it line by line
+    """
+    log.info("Attempting to send file...")
+    source = open(filePath, 'r')
+    for line in source:
+        transmit(line.strip(), sock)
+    log.info("File sent!")
+    source.close()
 
 
 def transmit(msg, sock):
@@ -141,9 +161,11 @@ def main():
     if options.DEBUG:
         log.setLevel(logging.DEBUG)
     sock = listen(port)
+    docroot = options.DOCROOT
     log.info("Listening on port {}".format(port))
     log.info("Socket is {}".format(sock))
-    serve(sock, respond)
+    log.info("DOCROOT is " + docroot)
+    serve(sock, respond, docroot)
 
 
 if __name__ == "__main__":
